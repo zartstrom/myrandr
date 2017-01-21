@@ -1,20 +1,44 @@
+#!/usr/bin/python3
+
+"""
+Wrapper around xrandr.
+Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules)
+
+(has to be in one line, added line breaks for readability)
+KERNEL=="card0", SUBSYSTEM=="drm",
+ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
+ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
+RUN+="/home/phil/scripts/myrandr"authority", RUN+="/home/phil/scripts/myrandr"
+"""
 
 
-import click
+import click  # need to install it as root "sudo pacman -S python-click"
+from datetime import datetime
+import errno
 import os
 import subprocess
 import re
 
 
-# XRANDR_LINE = re.compile(r"(?P<name>.*) (?P<connected>(dis)?connected) (?P<mode>primary)? (?P<resolution>\d+x\d+\+\d+\+\d)?")
 XRANDR_LINE = re.compile(r"(?P<name>.*) (?P<connected>(dis)?connected) ?(?P<mode>primary)? ?(?P<res_and_pos>\d+x\d+\+\d+\+\d+)? \(.*$")
 RES_AND_POS = re.compile(r"(?P<resolution>\d+x\d+)(?P<position>\+\d+\+\d+)")
 
 BASE_SCREEN = "eDP-1"
+HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 def left_or_right(name):
-    # TODO: remove hardcodedness
+    # TODO: remove the hardcodedness
     if name == "DP-2-2":
         return ["--left-of", BASE_SCREEN]
     elif name == "HDMI-1":
@@ -62,19 +86,20 @@ def get_screen(line):
 
 @click.command()
 def myrandr():
+    mkdir_p(os.path.join(HOME, ".myrandr/log"))
+    with open(os.path.join(HOME, ".myrandr/log", "plug.log"), "a") as logfile:
+        logfile.write("Plugged or unplugged screen at %s.\n" % str(datetime.now()))
 
     result = subprocess.check_output("xrandr").decode("utf-8")
     lines = result.split("\n")
     lines = [x for x in lines if "connected" in x]
-    for line in lines:
-        screen = get_screen(line)
+
     screens = [get_screen(line) for line in lines]
-    # for screen in screens:
-    #     print(screen.xrandr_args())
     xrandr_args = [arg for screen in screens for arg in screen.xrandr_args()]
-    # print(xrandr_args)
-    # print
+
+    # now do it :)
     subprocess.run(["xrandr"] + xrandr_args)
+
 
 if __name__ == "__main__":
     myrandr()
