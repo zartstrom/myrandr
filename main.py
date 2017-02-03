@@ -23,7 +23,6 @@ import re
 XRANDR_LINE = re.compile(r"(?P<name>.*) (?P<connected>(dis)?connected) ?(?P<mode>primary)? ?(?P<res_and_pos>\d+x\d+\+\d+\+\d+)? \(.*$")
 RES_AND_POS = re.compile(r"(?P<resolution>\d+x\d+)(?P<position>\+\d+\+\d+)")
 
-BASE_SCREEN = "eDP-1"
 HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
 
 
@@ -38,13 +37,21 @@ def mkdir_p(path):
 
 
 def left_or_right(name):
-    # TODO: remove the hardcodedness
+    # TODO: remove the hardcodedness!
+    # LOL
+    BASE_SCREEN = "eDP-1"
+    BASE_SCREEN_WORK = "LVDS-1"
+
     if name == "DP-2-2":
         return ["--left-of", BASE_SCREEN]
     elif name == "HDMI-1":
         return ["--right-of", BASE_SCREEN]
-    else:
-        return []
+    elif name == "HDMI-2":
+        return ["--right-of", "HDMI-3"]
+    elif name == "HDMI-3":
+        return ["--right-of", BASE_SCREEN_WORK]
+    return []
+    # LOL end
 
 
 class Screen(object):
