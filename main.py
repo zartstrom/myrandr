@@ -7,7 +7,7 @@ Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules)
 KERNEL=="card0", SUBSYSTEM=="drm",
 ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
 ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
-RUN+="/home/phil/scripts/myrandr"authority", RUN+="/home/phil/scripts/myrandr"
+RUN+="/home/phil/scripts/myrandr"
 (has to be in one line, added line breaks for readability)
 """
 
