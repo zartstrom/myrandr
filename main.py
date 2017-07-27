@@ -4,11 +4,11 @@
 Wrapper around xrandr.
 Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules)
 
-(has to be in one line, added line breaks for readability)
 KERNEL=="card0", SUBSYSTEM=="drm",
 ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
 ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
 RUN+="/home/phil/scripts/myrandr"authority", RUN+="/home/phil/scripts/myrandr"
+(has to be in one line, added line breaks for readability)
 """
 
 
@@ -95,11 +95,11 @@ def get_screen(line):
 def myrandr():
     mkdir_p(os.path.join(HOME, ".myrandr/log"))
     with open(os.path.join(HOME, ".myrandr/log", "plug.log"), "a") as logfile:
-        logfile.write("Plugged or unplugged screen at %s.\n" % str(datetime.now()))
+        logfile.write("myrandr called at %s.\n" % str(datetime.now()))
 
     result = subprocess.check_output("xrandr").decode("utf-8")
     lines = result.split("\n")
-    lines = [x for x in lines if "connected" in x]
+    lines = [x for x in lines if "connected" in x]  # matches "connected" and "disconnected"
 
     screens = [get_screen(line) for line in lines]
     xrandr_args = [arg for screen in screens for arg in screen.xrandr_args()]
