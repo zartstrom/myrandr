@@ -2,16 +2,55 @@
 
 """
 Wrapper around xrandr.
-Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules):
+
+### Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules):
 
 KERNEL=="card0", SUBSYSTEM=="drm",
 ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
 ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
 RUN+="/home/phil/scripts/myrandr"
-(has to be in one line, added line breaks for readability)
 
-Monitor udev action:
-udevadm monitor --environment --udev
+Notes:
+- has to be in one line, added line breaks for readability
+- check for correct display number (`env | grep DISPLAY`), maybe ":0", ":1" etc.
+
+### Monitor udev action:
+» udevadm monitor --environment --udev
+monitor will print the received events for:
+UDEV - the event which udev sends out after rule processing
+
+UDEV  [106105.021984] change   /devices/pci0000:00/0000:00:02.0/drm/card0 (drm)
+ACTION=change
+DEVLINKS=/dev/dri/by-path/pci-0000:00:02.0-card
+DEVNAME=/dev/dri/card0
+DEVPATH=/devices/pci0000:00/0000:00:02.0/drm/card0
+DEVTYPE=drm_minor
+DISPLAY=:0
+HOTPLUG=1
+ID_FOR_SEAT=drm-pci-0000_00_02_0
+ID_PATH=pci-0000:00:02.0
+ID_PATH_TAG=pci-0000_00_02_0
+LANG=en_US.utf-8
+LC_ALL=en_US.utf-8
+MAJOR=226
+MINOR=0
+SEQNUM=2871
+SUBSYSTEM=drm
+TAGS=:master-of-seat:uaccess:seat:
+USEC_INITIALIZED=4287742
+XAUTHORITY=/home/phil/.Xauthority
+...
+
+### Test udev rules:
+» udevadm test $(udevadm info -q path -n /dev/dri/card0) 2>&1
+(/dev/dri/card0 is device name)
+
+### .Xauthority
+» mv .Xauthority .Xauthority.bak
+» touch .Xauthority
+» # check `env | grep DISPLAY` for value
+» xauth generate :1 . trusted
+
 """
 
 
@@ -22,13 +61,37 @@ import logging
 import os
 import subprocess
 import re
+from operator import attrgetter
 
 
-LOGGER = logging.getLogger()
 HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
+LOG_PATH = os.path.join(HOME, ".myrandr/log")
+PROFILES_PATH = os.path.join(HOME, ".myrandr/profiles")
+PROFILES_FILE = os.path.join(PROFILES_PATH, "profiles.txt")
+LOG_DATEFMT = '%m-%d %H:%M:%S'
+
+# TODO: cleanup/shorten logging conf
+logging.basicConfig(level=logging.DEBUG)
+LOGGER = logging.getLogger()
+LOGGER.handlers = []
+
+# create file handler and stream handler
+FILE_HANDLER = logging.FileHandler(os.path.join(LOG_PATH, "myrandr.log"))
+FILE_HANDLER.setLevel(logging.DEBUG)
+# create console handler with a potential different log level
+CONSOLE_HANDLER = logging.StreamHandler()
+CONSOLE_HANDLER.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+CONSOLE_HANDLER.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s", datefmt=LOG_DATEFMT))
+FILE_HANDLER.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s", datefmt=LOG_DATEFMT))
+# add handler to logger
+LOGGER.addHandler(CONSOLE_HANDLER)
+LOGGER.addHandler(FILE_HANDLER)
+
 
 XRANDR_LINE = re.compile(r"(?P<name>.*) (?P<connected>(dis)?connected) ?(?P<mode>primary)? ?(?P<res_and_pos>\d+x\d+\+\d+\+\d+)? \(.*$")
 RES_AND_POS = re.compile(r"(?P<resolution>\d+x\d+)(?P<position>\+\d+\+\d+)")
+XY_POSITION = re.compile(r"\+(?P<x_position>\d+)\+(?P<y_position>\d+)")
 
 
 def mkdir_p(path):
@@ -67,13 +130,28 @@ class Screen(object):
 
     def xrandr_args(self):
         result =  ["--output", self.name]
-        if not self.is_connected:
-            result.append("--off")
+        if self.is_connected:
+            result.append("--auto")
+            result.extend(left_or_right(self.name))
+            return result
 
-        result.append("--auto")
-        result.extend(left_or_right(self.name))
-
+        result.append("--off")
         return result
+
+    @property
+    def x_position(self):
+        return self._get_pos("x_position")
+
+    @property
+    def y_position(self):
+        return self._get_pos("y_position")
+
+    def _get_pos(self, position_name):
+        if not self.position:
+            return 0
+        match_pos = XY_POSITION.match(self.position)
+        position = int(match_pos.group(position_name))
+        return position
 
     def __repr__(self):
         connected_string = "connected" if self.is_connected else "disconnected"
@@ -96,25 +174,60 @@ def get_screen(line):
     return Screen(name, is_connected, position)
 
 
-@click.command()
-def myrandr():
-
+def get_screens(connected_only=False):
     result = subprocess.check_output("xrandr").decode("utf-8")
     lines = result.split("\n")
     lines = [x for x in lines if "connected" in x]  # matches "connected" and "disconnected"
 
     screens = [get_screen(line) for line in lines]
+    if connected_only:
+        return [screen for screen in screens if screen.is_connected]
+    return screens
+
+
+def lookup_profiles(connected_screens):
+    pass
+
+
+@click.group()
+def main():
+    pass
+
+
+@main.command()
+@click.argument("profile_name", required=True)
+def save(profile_name):
+    mkdir_p(PROFILES_PATH)
+    LOGGER.info("save profile '%s'", profile_name)
+
+    screens = get_screens(connected_only=True)
+    names = ";".join([screen.name for screen in screens])
+    left2right = sorted(screens, key=attrgetter("x_position"))
+    sorted_names = ";".join([screen.name for screen in left2right])
+
+    with open(PROFILES_FILE, "a") as _file:
+        line = "%s|%s|%s" % (profile_name, names, sorted_names)
+        _file.write(line)
+        _file.write("\n")
+
+
+@main.command()
+@click.argument("profile_name", required=False)
+def load(profile_name):
+    mkdir_p(LOG_PATH)
+    LOGGER.info("%s triggered myrandr" % os.environ.get("USER", "udev"))
+
+    screens = get_screens()
+    connected_screens = get_screens(connected_only=True)
+    # lookup_profiles(connected_screens)
+
     xrandr_args = [arg for screen in screens for arg in screen.xrandr_args()]
     command = ["xrandr"] + xrandr_args
-
-    mkdir_p(os.path.join(HOME, ".myrandr/log"))
-    with open(os.path.join(HOME, ".myrandr/log", "plug.log"), "a") as logfile:
-        logfile.write("Called myrandr at %s.\n" % str(datetime.now()))
-        logfile.write("%s\n" % " ".join(command))
+    LOGGER.info("xrandr command: '%s'" % " ".join(command))
 
     # now do it :)
     subprocess.run(command)
 
 
 if __name__ == "__main__":
-    myrandr()
+    main()  # pylint: disable=no-value-for-parameter

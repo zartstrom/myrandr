@@ -9,6 +9,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        myrandr=main:myrandr
+        myrandr=main:main
     ''',
 )
