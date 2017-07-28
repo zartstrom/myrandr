@@ -2,28 +2,33 @@
 
 """
 Wrapper around xrandr.
-Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules)
+Created a udev rule (/etc/udev/rules.d/95-monitor-hotplug.rules):
 
 KERNEL=="card0", SUBSYSTEM=="drm",
 ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
 ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
 RUN+="/home/phil/scripts/myrandr"
 (has to be in one line, added line breaks for readability)
+
+Monitor udev action:
+udevadm monitor --environment --udev
 """
 
 
 import click  # need to install it as root "sudo pacman -S python-click"
 from datetime import datetime
 import errno
+import logging
 import os
 import subprocess
 import re
 
 
+LOGGER = logging.getLogger()
+HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
+
 XRANDR_LINE = re.compile(r"(?P<name>.*) (?P<connected>(dis)?connected) ?(?P<mode>primary)? ?(?P<res_and_pos>\d+x\d+\+\d+\+\d+)? \(.*$")
 RES_AND_POS = re.compile(r"(?P<resolution>\d+x\d+)(?P<position>\+\d+\+\d+)")
-
-HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
 
 
 def mkdir_p(path):
@@ -93,9 +98,6 @@ def get_screen(line):
 
 @click.command()
 def myrandr():
-    mkdir_p(os.path.join(HOME, ".myrandr/log"))
-    with open(os.path.join(HOME, ".myrandr/log", "plug.log"), "a") as logfile:
-        logfile.write("myrandr called at %s.\n" % str(datetime.now()))
 
     result = subprocess.check_output("xrandr").decode("utf-8")
     lines = result.split("\n")
@@ -103,9 +105,15 @@ def myrandr():
 
     screens = [get_screen(line) for line in lines]
     xrandr_args = [arg for screen in screens for arg in screen.xrandr_args()]
+    command = ["xrandr"] + xrandr_args
+
+    mkdir_p(os.path.join(HOME, ".myrandr/log"))
+    with open(os.path.join(HOME, ".myrandr/log", "plug.log"), "a") as logfile:
+        logfile.write("Called myrandr at %s.\n" % str(datetime.now()))
+        logfile.write("%s\n" % " ".join(command))
 
     # now do it :)
-    subprocess.run(["xrandr"] + xrandr_args)
+    subprocess.run(command)
 
 
 if __name__ == "__main__":
