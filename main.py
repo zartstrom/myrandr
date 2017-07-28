@@ -8,7 +8,7 @@ Wrapper around xrandr.
 KERNEL=="card0", SUBSYSTEM=="drm",
 ENV{LC_ALL}="en_US.utf-8", ENV{LANG}="en_US.utf-8",
 ENV{DISPLAY}=":0", ENV{XAUTHORITY}="/home/phil/.Xauthority",
-RUN+="/home/phil/scripts/myrandr"
+RUN+="/home/phil/scripts/myrandr load"
 
 Notes:
 - has to be in one line, added line breaks for readability
