@@ -55,6 +55,7 @@ XAUTHORITY=/home/phil/.Xauthority
 
 
 import click  # need to install it as root "sudo pacman -S python-click"
+import csv
 from datetime import datetime
 import errno
 import logging
@@ -122,20 +123,33 @@ def left_or_right(name):
     # LOL end
 
 
+def relative_position_xrandr(screen_name, sorted_screens):
+    assert screen_name in sorted_screens
+    index = sorted_screens.index(screen_name)
+    if index > 0:
+        return ["--right-of", sorted_screens[index - 1]]
+    else:
+        return []
+
+
 class Screen(object):
     def __init__(self, name, is_connected, position):
         self.name = name
         self.is_connected = is_connected
         self.position = position
 
-    def xrandr_args(self):
-        result =  ["--output", self.name]
-        if self.is_connected:
+    def xrandr_args(self, sorted_screens=None):
+        result = ["--output", self.name]
+        if self.is_connected and sorted_screens is not None and self.name in sorted_screens:
+            result.append("--auto")
+            result.extend(relative_position_xrandr(self.name, sorted_screens))
+        elif self.is_connected:
             result.append("--auto")
             result.extend(left_or_right(self.name))
-            return result
+            # return result
+        else:
+            result.append("--off")
 
-        result.append("--off")
         return result
 
     @property
@@ -185,8 +199,15 @@ def get_screens(connected_only=False):
     return screens
 
 
-def lookup_profiles(connected_screens):
-    pass
+def lookup_profile(name):
+    headers = ["profile_name", "screen_names", "sorted_screens"]
+    with open(PROFILES_FILE, "r") as infile:
+        reader = csv.DictReader(infile, headers, delimiter="|")
+        for row in reader:
+            if name == row["profile_name"]:
+                return row["sorted_screens"].split(";")
+
+    return None
 
 
 @click.group()
@@ -219,9 +240,10 @@ def load(profile_name):
 
     screens = get_screens()
     connected_screens = get_screens(connected_only=True)
-    # lookup_profiles(connected_screens)
+    sorted_screens = lookup_profile(profile_name)
+    print(sorted_screens)
 
-    xrandr_args = [arg for screen in screens for arg in screen.xrandr_args()]
+    xrandr_args = [arg for screen in screens for arg in screen.xrandr_args(sorted_screens)]
     command = ["xrandr"] + xrandr_args
     LOGGER.info("xrandr command: '%s'" % " ".join(command))
 
