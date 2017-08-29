@@ -116,9 +116,9 @@ def left_or_right(name):
     elif name == "HDMI-1":
         return ["--right-of", BASE_SCREEN]
     elif name == "HDMI-2":
-        return ["--right-of", "HDMI-3"]
-    elif name == "HDMI-3":
         return ["--right-of", BASE_SCREEN_WORK]
+    elif name == "HDMI-3":
+        return ["--right-of", "HDMI-2"]
     return []
     # LOL end
 
