@@ -65,7 +65,7 @@ import re
 from operator import attrgetter
 
 
-HOME = "/home/phil"  # cannot use os.environ["HOME"] because root executes this in udev rule
+HOME = "/home/phil"  # cannot use os.environ["HOME"] because not phil executes this in udev rule
 LOG_PATH = os.path.join(HOME, ".myrandr/log")
 PROFILES_PATH = os.path.join(HOME, ".myrandr/profiles")
 PROFILES_FILE = os.path.join(PROFILES_PATH, "profiles.txt")
@@ -112,7 +112,7 @@ def left_or_right(name):
     BASE_SCREEN_WORK = "LVDS-1"
 
     if name == "DP-2-2":
-        return ["--left-of", BASE_SCREEN]
+        return ["--right-of", BASE_SCREEN]
     elif name == "HDMI-1":
         return ["--right-of", BASE_SCREEN]
     elif name == "HDMI-2":
